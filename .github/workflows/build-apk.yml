@@ -1,0 +1,53 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Unzip project
+        run: |
+          unzip -o smart-live-chat-v14-fixed.zip -d extracted
+          ls -R extracted | head -n 200
+          # Pindahin isi ke root, biar gradlew ketemu
+          # Kalo di dalam zip ada 1 folder, pindahin isinya
+          if [ $(ls -1 extracted | wc -l) -eq 1 ] && [ -d "extracted/$(ls -1 extracted)" ]; then
+            mv extracted/$(ls -1 extracted)/* ./ 2>/dev/null || true
+            mv extracted/$(ls -1 extracted)/.[!.]* ./ 2>/dev/null || true
+          else
+            mv extracted/* ./ 2>/dev/null || true
+          fi
+          ls -la
+          find . -maxdepth 3 -name "gradlew" -o -name "build.gradle*" | head -n 20
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build APK
+        run: |
+          # Cari dimana gradlew nya
+          GRADLEW=$(find . -maxdepth 4 -name "gradlew" | head -n 1)
+          echo "Gradlew found at: $GRADLEW"
+          DIR=$(dirname "$GRADLEW")
+          cd "$DIR"
+          chmod +x gradlew
+          ./gradlew assembleDebug --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: smart-live-chat-apk
+          path: "**/build/outputs/apk/debug/*.apk"
